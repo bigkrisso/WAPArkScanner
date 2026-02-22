@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WA Parks - Map & Distance Search</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; text-align: center; }
+        .controls { padding: 20px; background: #f8f9fa; }
+        .form-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: 10px; margin-bottom: 15px; align-items: end; }
+        input, button, select { padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; }
+        button { background: #667eea; color: white; border: none; cursor: pointer; font-weight: 600; }
+        button:hover { background: #5568d3; }
+        .campground-list { max-height: 300px; overflow-y: auto; border: 2px solid #ddd; border-radius: 6px; padding: 10px; margin: 15px 0; }
+        .campground-item { display: flex; align-items: center; gap: 8px; padding: 6px; }
+        .campground-item:hover { background: #f0f0f0; }
+        .distance { font-size: 12px; color: #666; margin-left: auto; }
+        .results { padding: 20px; }
+        .campground-section { margin-bottom: 30px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+        .campground-header { display: flex; justify-content: space-between; background: #f8f9fa; padding: 15px; border-bottom: 2px solid #667eea; }
+        .campground-map { width: 250px; height: 150px; border-radius: 6px; }
+        .calendar { display: grid; gap: 1px; background: #ddd; margin: 15px; }
+        .calendar-cell { background: white; padding: 10px; text-align: center; font-size: 12px; }
+        .available { background: #d4edda; color: #155724; }
+        .unavailable { background: #f8d7da; color: #721c24; }
+        .header-cell { background: #495057; color: white; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        // Coordinates and campground data
+        const COORDS = {
+            3:[-34.990136,116.739263],4:[-33.428505,115.915117],5:[-32.129236,115.766608],6:[-31.544784,115.682967],
+            7:[-33.064506,115.763228],8:[-32.711469,116.056881],9:[-33.00444,115.97083],10:[-34.221597,115.029774],
+            11:[-16.8219,124.9157],12:[-22.387004,118.263702],13:[-32.845389,115.97685],14:[-32.784641,116.971951],
+            15:[-22.156318,113.866307],16:[-22.172796,113.861038],17:[-22.3204,113.813],18:[-22.177481,113.859409],
+            19:[-22.3492,113.7992],20:[-22.247,113.84],22:[-22.006451,113.927479],23:[-22.004,113.933],
+            24:[-22.143,113.872],26:[-22.3315,113.807],27:[-17.5216,128.301],28:[-17.3872,128.33],
+            29:[-32.8053,116.092],30:[-32.8041,116.101],31:[-32.7861,116.111],32:[-32.7695,116.0839],
+            33:[-22.2378,113.84],34:[-32.8044,116.11],35:[-32.7942,116.1064],36:[-32.8058,116.1231],
+            37:[-31.9536,116.176],38:[-22.075,113.897],40:[-33.3789,115.9386],42:[-17.4136,124.9411],
+            43:[-33.9906,122.2199],44:[-34.1806,115.0722],45:[-34.0922,115.0168],46:[-33.9797,122.1196],
+            47:[-33.3628,115.9886],48:[-34.0764,115.3889],49:[-34.0919,115.2069],50:[-34.4006,118.1028],
+            51:[-34.5092,115.9614],52:[-34.5108,115.9467],54:[-32.846885,115.668409],55:[-33.3768,115.9372],
+            56:[-33.3781,115.934],57:[-33.8167,121.1492],59:[-31.60306,116.22375],60:[-35.005,116.51231],
+            61:[-33.943972,115.693147],62:[-33.23547,115.69772],63:[-34.402644,116.00364],64:[-25.77481,113.47652],
+            65:[-31.18861,120.40333],66:[-25.54527,113.49066],67:[-28.95039,115.539739],68:[-31.39336,121.20031],
+            69:[-33.88028,115.2825],70:[-31.67275,121.23461],71:[-32.819775,116.88833],72:[-30.46551,120.827748],
+            73:[-34.98411,116.605],74:[-31.60567,116.22936],75:[-33.85622,121.19239],76:[-34.81808,116.59414],
+            78:[-34.426595,115.804409],79:[-25.55858,113.47438],80:[-25.62328,113.53487],82:[-31.61017,116.24397],
+            83:[-30.81642,120.16208],84:[-33.931869,123.323057],85:[-27.5874,119.5206],86:[-34.538691,115.874907],
+            88:[-32.70231,116.02633],89:[-21.58933,117.07222],90:[-28.9577,115.5547],91:[-14.82019,125.71839],
+            92:[-33.46603,123.46058],93:[-32.87267,121.17017],94:[-30.427065,120.863771],95:[-33.914375,123.334022],
+            96:[-34.59521,116.41006],97:[-33.86628,121.16689],98:[-17.06661,125.24892],99:[-33.85833,121.04008],
+            100:[-34.435013,115.797174],101:[-25.57857,113.46439],102:[-34.1648,119.58222],103:[-33.38272,116.227798],
+            104:[-24.66234,115.17575],106:[-33.854328,123.012845],107:[-31.60417,116.24231],108:[-31.28761,120.93056],
+            109:[-31.05813,120.29812],110:[-31.73283,116.05261],111:[-34.89283,118.3335],112:[-19.17675,127.78672],
+            113:[-33.953935,115.687961],114:[-28.07672,124.31831],115:[-32.7808,116.106],116:[-33.9345,115.0776],
+            118:[-32.8029,116.097],119:[-34.420859,115.691271],120:[-34.4156,115.5497],121:[-34.0805,115.0119],
+            129:[-33.845278,115.918611],130:[-34.199747,115.945941],131:[-32.8096,116.875],132:[-31.544811,115.689335],
+            133:[-34.110832,115.076981],134:[-33.853769,123.018293],135:[-29.079094,116.70948],136:[-26.143408,113.161725],
+            137:[-26.39946,113.30183],138:[-26.174927,113.1954],139:[-22.470131,118.55175],140:[-22.48764,118.475876],
+            141:[-33.922348,120.039411],143:[-30.737,115.166931],144:[-22.714062,113.706951],145:[-22.540684,113.698025],
+            146:[-22.51339,113.719139],147:[-22.544632,113.68309],148:[-22.501373,113.719482],149:[-23.270416,113.792782],
+            150:[-23.325348,113.792953],151:[-23.418388,113.786774],152:[-23.440018,113.7854],153:[-23.457527,113.782997],
+            154:[-23.48465,113.78849],155:[-23.540611,113.741112],156:[-23.617516,113.641548],157:[-23.823853,113.525505],
+            158:[-23.875351,113.497696],159:[-24.0271,113.455811],160:[-24.395485,113.407402],161:[-22.976875,113.825226],
+            162:[-23.318481,113.795357],163:[-23.280716,113.792267],164:[-23.513145,113.766518],165:[-23.540268,113.742485],
+            166:[-21.594658,117.083015],167:[-30.200996,115.252285],168:[-34.59144,116.4066],169:[-33.459206,116.23415],
+            170:[-30.162376,115.19912],171:[-25.511654,113.015415],172:[-25.780391,113.083393],173:[-25.946059,113.165103],
+            174:[-25.778957,112.969452],175:[-25.720135,113.068115],176:[-25.526356,112.930013],177:[-25.513749,112.942716],
+            178:[-25.584436,113.02065],179:[-25.495989,112.98752],180:[-33.456116,116.224365],181:[-35.109274,117.629586],
+            182:[-34.571734,115.848597],183:[-26.075885,113.581735],184:[-26.107474,113.616638],185:[-26.21465,113.69205],
+            186:[-26.191974,113.68782],219:[-32.986973,115.981719],220:[-32.989884,115.983696]
+        };
+        
+        const CAMPGROUNDS = [
+            {id:3,name:'Coalmine Beach'},{id:4,name:'Wellington Forest'},{id:5,name:'Woodman Point'},{id:6,name:'Yanchep Inn'},
+            {id:7,name:'Myalup Pines'},{id:8,name:'Dwellingup Chalets'},{id:9,name:'Lake Brockman'},{id:10,name:'Hamelin Bay'},
+            {id:11,name:'Walarra Mindi'},{id:12,name:'Karijini Eco Retreat'},{id:13,name:'Lake Navarino'},{id:14,name:'Lions Dryandra'},
+            {id:15,name:'Sal Salis'},{id:16,name:'North Kurrajong'},{id:17,name:'Yardie Creek'},{id:18,name:'Kurrajong'},
+            {id:19,name:'Boat Harbour'},{id:20,name:'Bungarra'},{id:22,name:'Mesa'},{id:23,name:'Neds'},
+            {id:24,name:'North Mandu'},{id:26,name:'One K'},{id:27,name:'Walardi'},{id:28,name:'Kurrajong Purnululu'},
+            {id:29,name:'Nanga Townsite'},{id:30,name:'Nanga Mill'},{id:31,name:'Chuditch'},{id:32,name:'Baden Powell'},
+            {id:33,name:'Osprey Bay'},{id:34,name:'Stringers'},{id:35,name:'Tonys Bend'},{id:36,name:'Yarragil'},
+            {id:37,name:'Perth Hills'},{id:38,name:'Tulki Beach'},{id:40,name:'Honeymoon Pool'},{id:42,name:'Bandilngan'},
+            {id:43,name:'Lucky Bay'},{id:44,name:'Boranup'},{id:45,name:'Point Road'},{id:46,name:'Le Grand Beach'},
+            {id:47,name:'Potters Gorge'},{id:48,name:'Sues Bridge'},{id:49,name:'Warner Glen'},{id:50,name:'Moingup Spring'},
+            {id:51,name:'Warren'},{id:52,name:'Draftys'},{id:54,name:'Martins Tank'},{id:55,name:'Stones Brook'},
+            {id:56,name:'Gelcoat'},{id:57,name:'Benwenerup'},{id:59,name:'Bald Hill'},{id:60,name:'Banksia Camp'},
+            {id:61,name:'Barrabup'},{id:62,name:'Belvidere'},{id:63,name:'Big Brook'},{id:64,name:'Big Lagoon'},
+            {id:65,name:'Boondi Rock'},{id:66,name:'Bottle Bay'},{id:67,name:'Breakaway'},{id:68,name:'Burra Rock'},
+            {id:69,name:'Canebrake Pool'},{id:70,name:'Cave Hill'},{id:71,name:'Congelin'},{id:72,name:'Credo'},
+            {id:73,name:'Crystal Springs'},{id:74,name:'Drummonds'},{id:75,name:'Fanny Cove'},{id:76,name:'Fernhook Falls'},
+            {id:78,name:'Grasstree Hollow'},{id:79,name:'Gregories'},{id:80,name:'Herald Bight'},{id:82,name:'Homestead'},
+            {id:83,name:'Jaurdi Station'},{id:84,name:'Jorndee Creek'},{id:85,name:'Lake Mason'},{id:86,name:'Leaning Marri'},
+            {id:88,name:'Marrinup'},{id:89,name:'Miliyanha'},{id:90,name:'Miners'},{id:91,name:'Mitchell Falls'},
+            {id:92,name:'Mount Ragged'},{id:93,name:'Peak Charles'},{id:94,name:'Rowles Lagoon'},{id:95,name:'Seal Creek'},
+            {id:96,name:'Shannon'},{id:97,name:'Shoal Cape'},{id:98,name:'Dulundi'},{id:99,name:'Skippy Rock'},
+            {id:100,name:'Snottygobble'},{id:101,name:'South Gregories'},{id:102,name:'St Mary Inlet'},{id:103,name:'Stockton Lake'},
+            {id:104,name:'Temple Gorge'},{id:106,name:'Yokinup Mia Mia'},{id:107,name:'Valley'},{id:108,name:'Victoria Rock'},
+            {id:109,name:'Wallaroo Rock'},{id:110,name:'Walyunga'},{id:111,name:'Waychinicup'},{id:112,name:'Wolfe Creek'},
+            {id:113,name:'Workmans Pool'},{id:114,name:'Yeo Lake'},{id:115,name:'Charlies Flat'},{id:116,name:'RAC Margaret River'},
+            {id:118,name:'Nanga Brook'},{id:119,name:'Lake Jasper'},{id:120,name:'Black Point'},{id:121,name:'Conto'},
+            {id:129,name:'Wrights Bridge'},{id:130,name:'Greens Island'},{id:131,name:'Gnaala Mia'},{id:132,name:'Henry White Oval'},
+            {id:133,name:'Jarrahdene'},{id:134,name:'Belinup'},{id:135,name:'Karara'},{id:136,name:'Steep Point'},
+            {id:137,name:'False Entrance'},{id:138,name:'Shelter Bay'},{id:139,name:'Dales'},{id:140,name:'Karijini Overflow'},
+            {id:141,name:'Four Mile'},{id:143,name:'Wanagarren'},{id:144,name:'Janes Bay'},{id:145,name:'Point Billie'},
+            {id:146,name:'North Lefroy'},{id:147,name:'South Lefroy'},{id:148,name:'Winderabandi'},{id:149,name:'14 Mile'},
+            {id:150,name:'Sandy Point'},{id:151,name:'Maggies'},{id:152,name:'Elles Beach'},{id:153,name:'Stevens Camp'},
+            {id:154,name:'Warroora'},{id:155,name:'Lagoon'},{id:156,name:'Amherst Point'},{id:157,name:'Gnaraloo'},
+            {id:158,name:'3 Mile Camp'},{id:159,name:'Red Bluff'},{id:160,name:'Quobba'},{id:161,name:'Bruboodjoo'},
+            {id:162,name:'Stans Camp'},{id:163,name:'The Ridge'},{id:164,name:'Black Moon Cliff'},{id:165,name:'Nicks Camp'},
+            {id:166,name:'Stargazers'},{id:167,name:'Karda'},{id:168,name:'Shannon Horse'},{id:169,name:'Mick Murray'},
+            {id:170,name:'Yonga Walk'},{id:171,name:'Dampiers'},{id:172,name:'Louisa Bay'},{id:173,name:'Notch Point'},
+            {id:174,name:'Quoin Head'},{id:175,name:'Sandy Point DHI'},{id:176,name:'The Block'},{id:177,name:'Urchin Point'},
+            {id:178,name:'Withnell Point'},{id:179,name:'Turtle Bay'},{id:180,name:'David Ugle'},{id:181,name:'Shelley Beach'},
+            {id:182,name:'Yeagarup Hut'},{id:183,name:'Eagle Bluff'},{id:184,name:'Fowlers'},{id:185,name:'Goulet Bluff'},
+            {id:186,name:'Whalebone'},{id:219,name:'Brockman'},{id:220,name:'Scarp Road'}
+        ];
+        
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        function CampgroundMap({ coords, name }) {
+            const mapRef = useRef(null);
+            const containerRef = useRef(null);
+            
+            useEffect(() => {
+                if (containerRef.current && !mapRef.current) {
+                    mapRef.current = L.map(containerRef.current).setView(coords, 10);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapRef.current);
+                    L.marker(coords).addTo(mapRef.current).bindPopup(name);
+                }
+            }, []);
+            
+            return <div ref={containerRef} className="campground-map" />;
+        }
+        
+        function App() {
+            const [searchLocation, setSearchLocation] = useState('Perth, WA');
+            const [searchCoords, setSearchCoords] = useState(null);
+            const [selectedIds, setSelectedIds] = useState([145, 146, 147, 148]);
+            const [arrival, setArrival] = useState(() => new Date().toISOString().split('T')[0]);
+            const departure = (() => {
+                const d = new Date(arrival);
+                d.setDate(d.getDate() + 13);
+                return d.toISOString().split('T')[0];
+            })();
+            const [results, setResults] = useState(null);
+            const [loading, setLoading] = useState(false);
+            
+            const geocode = async () => {
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchLocation)}&format=json&limit=1`);
+                    const data = await res.json();
+                    if (data[0]) {
+                        setSearchCoords([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+                        alert(`Found: ${data[0].display_name}`);
+                    } else {
+                        alert('Location not found');
+                    }
+                } catch (e) {
+                    alert('Geocoding error');
+                }
+            };
+            
+            const campgroundsWithDistance = CAMPGROUNDS.map(cg => ({
+                ...cg,
+                coords: COORDS[cg.id],
+                distance: searchCoords && COORDS[cg.id] 
+                    ? calculateDistance(searchCoords[0], searchCoords[1], COORDS[cg.id][0], COORDS[cg.id][1])
+                    : null
+            })).sort((a, b) => (a.distance || 99999) - (b.distance || 99999));
+            
+            const searchAvailability = async () => {
+                setLoading(true);
+                const arrFmt = arrival.replace(/-/g, '/');
+                const depFmt = departure.replace(/-/g, '/');
+                
+                const promises = selectedIds.map(async id => {
+                    const url = `https://parkstay.dbca.wa.gov.au/api/campsite_availablity_view/${id}/?arrival=${arrFmt}&departure=${depFmt}&num_adult=2&num_child=0&num_concession=0&num_infant=0&gear_type=all&_=${Date.now()}`;
+                    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+                    try {
+                        const res = await fetch(proxy);
+                        const data = await res.json();
+                        return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data, coords: COORDS[id] };
+                    } catch (e) {
+                        return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data: null, coords: COORDS[id] };
+                    }
+                });
+                
+                const data = await Promise.all(promises);
+                setResults(data.filter(r => r.data && r.data.sites));
+                setLoading(false);
+            };
+            
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>🏕️ WA Parks Availability Search</h1>
+                        <p>Search by distance and view campground maps</p>
+                    </div>
+                    
+                    <div className="controls">
+                        <div className="form-row">
+                            <div>
+                                <label>Search Location</label>
+                                <input value={searchLocation} onChange={e => setSearchLocation(e.target.value)} 
+                                       placeholder="Enter city, town, or address" />
+                            </div>
+                            <div>
+                                <label>Max Distance (km)</label>
+                                <input type="number" defaultValue="200" />
+                            </div>
+                            <button onClick={geocode}>📍 Find Location</button>
+                        </div>
+                        
+                        {searchCoords && <p style={{color: '#667eea', fontWeight: 'bold'}}>
+                            Location found! Campgrounds sorted by distance.
+                        </p>}
+                        
+                        <label><strong>Select Campgrounds ({selectedIds.length} selected)</strong></label>
+                        <div className="campground-list">
+                            {campgroundsWithDistance.map(cg => (
+                                <div key={cg.id} className="campground-item">
+                                    <input type="checkbox" 
+                                           checked={selectedIds.includes(cg.id)}
+                                           onChange={e => setSelectedIds(
+                                               e.target.checked 
+                                                   ? [...selectedIds, cg.id]
+                                                   : selectedIds.filter(id => id !== cg.id)
+                                           )} />
+                                    <label>{cg.name}</label>
+                                    {cg.distance && <span className="distance">{Math.round(cg.distance)}km</span>}
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="form-row">
+                            <div>
+                                <label>Arrival</label>
+                                <input type="date" value={arrival} onChange={e => setArrival(e.target.value)} />
+                            </div>
+                            <div>
+                                <label>Departure (14 nights)</label>
+                                <input type="date" value={departure} readOnly style={{background: '#f0f0f0', cursor: 'not-allowed'}} />
+                            </div>
+                            <button onClick={searchAvailability} disabled={loading || selectedIds.length === 0}>
+                                {loading ? 'Searching...' : '🔍 Search Availability'}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {results && (
+                        <div className="results">
+                            {results.map(cg => (
+                                <div key={cg.id} className="campground-section">
+                                    <div className="campground-header">
+                                        <div>
+                                            <h2>{cg.name}</h2>
+                                            <p>{cg.data.sites.length} sites available</p>
+                                        </div>
+                                        <CampgroundMap coords={cg.coords} name={cg.name} />
+                                    </div>
+                                    <div className="calendar" style={{gridTemplateColumns: `150px repeat(${cg.data.sites[0].availability.length}, 1fr)`}}>
+                                        <div className="calendar-cell header-cell">Site</div>
+                                        {cg.data.sites[0].availability.map((day, i) => (
+                                            <div key={i} className="calendar-cell header-cell">
+                                                {new Date(day[5]).toLocaleDateString('en-AU', {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'})}
+                                            </div>
+                                        ))}
+                                        {cg.data.sites.map(site => (
+                                            <React.Fragment key={site.id}>
+                                                <div className="calendar-cell header-cell">
+                                                    <div>{site.name}</div>
+                                                    {site.short_description && <div style={{fontWeight: 'normal', fontSize: '11px', color: '#ccc', marginTop: '3px'}}>{site.short_description}</div>}
+                                                </div>
+                                                {site.availability.map((day, i) => (
+                                                    <div key={i} className={`calendar-cell ${day[0] ? 'available' : 'unavailable'}`}>
+                                                        {day[0] ? '✓' : '✗'}
+                                                    </div>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
