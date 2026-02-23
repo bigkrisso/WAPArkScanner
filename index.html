@@ -157,8 +157,28 @@
         function App() {
             const [searchLocation, setSearchLocation] = useState('Perth, WA');
             const [searchCoords, setSearchCoords] = useState(null);
-            const [selectedIds, setSelectedIds] = useState([145, 146, 147, 148]);
-            const [arrival, setArrival] = useState(() => new Date().toISOString().split('T')[0]);
+            const [selectedIds, setSelectedIds] = useState(() => {
+                const params = new URLSearchParams(window.location.search);
+                const cg = params.get('campgrounds');
+                if (cg) {
+                    const ids = cg.split(',').map(Number).filter(n => !isNaN(n) && n > 0);
+                    if (ids.length > 0) return ids;
+                }
+                return [145, 146, 147, 148];
+            });
+            const [arrival, setArrival] = useState(() => {
+                const params = new URLSearchParams(window.location.search);
+                const a = params.get('arrival');
+                if (a && /^\d{4}-\d{2}-\d{2}$/.test(a)) return a;
+                return new Date().toISOString().split('T')[0];
+            });
+
+            useEffect(() => {
+                const params = new URLSearchParams();
+                params.set('arrival', arrival);
+                params.set('campgrounds', selectedIds.join(','));
+                history.replaceState(null, '', '?' + params.toString());
+            }, [arrival, selectedIds]);
             const departure = (() => {
                 const d = new Date(arrival);
                 d.setDate(d.getDate() + 13);
