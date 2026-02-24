@@ -186,8 +186,6 @@
             })();
             const [results, setResults] = useState(null);
             const [loading, setLoading] = useState(false);
-            const [queueError, setQueueError] = useState(false);
-            const [sessionCookie, setSessionCookie] = useState('');
             
             const geocode = async () => {
                 try {
@@ -214,10 +212,9 @@
             
             const searchAvailability = async () => {
                 setLoading(true);
-                setQueueError(false);
                 const arrFmt = arrival.replace(/-/g, '/');
                 const depFmt = departure.replace(/-/g, '/');
-
+                
                 const promises = selectedIds.map(async id => {
                     const url = `https://parkstay.dbca.wa.gov.au/api/campsite_availablity_view/${id}/?arrival=${arrFmt}&departure=${depFmt}&num_adult=2&num_child=0&num_concession=0&num_infant=0&gear_type=all&_=${Date.now()}`;
                     const name = CAMPGROUNDS.find(c => c.id === id).name;
@@ -226,17 +223,15 @@
                         try { return { data: JSON.parse(text) }; } catch { return {}; }
                     };
                     try {
-                        const headers = sessionCookie.trim() ? { 'Cookie': sessionCookie.trim() } : {};
-                        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { headers });
-                        const result = parseResult(await res.text());
-                        if (result.data) return { id, name, data: result.data, coords: COORDS[id] };
-                        if (result.queued) return { id, name, data: null, queued: true, coords: COORDS[id] };
-                    } catch (e) {}
-                    return { id, name, data: null, coords: COORDS[id] };
+                        const res = await fetch(proxy);
+                        const data = await res.json();
+                        return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data, coords: COORDS[id] };
+                    } catch (e) {
+                        return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data: null, coords: COORDS[id] };
+                    }
                 });
-
+                
                 const data = await Promise.all(promises);
-                if (data.some(r => r.queued)) setQueueError(true);
                 setResults(data.filter(r => r.data && r.data.sites));
                 setLoading(false);
             };
@@ -298,27 +293,6 @@
                         </div>
                     </div>
                     
-                    {queueError && (
-                        <div style={{margin: '20px', padding: '15px', background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', color: '#856404'}}>
-                            <strong>⏳ WA Parks Virtual Queue Active</strong>
-                            <p style={{margin: '8px 0 0'}}>The API requires a valid session cookie. To fix this:</p>
-                            <ol style={{margin: '8px 0 0', paddingLeft: '20px'}}>
-                                <li>Open <a href="https://parkstay.dbca.wa.gov.au" target="_blank" rel="noreferrer" style={{color: '#856404'}}>parkstay.dbca.wa.gov.au</a> in this browser and wait through the queue until the site loads</li>
-                                <li>Open DevTools (F12) → <strong>Network</strong> tab, then refresh the page</li>
-                                <li>Click any request to <code>parkstay.dbca.wa.gov.au</code> → <strong>Headers</strong> → scroll to <strong>Request Headers</strong></li>
-                                <li>Copy the entire value next to <strong>cookie:</strong> and paste it below, then search again</li>
-                            </ol>
-                            <div style={{marginTop: '10px'}}>
-                                <label style={{display: 'block', marginBottom: '4px', fontWeight: 'bold'}}>Paste full cookie string:</label>
-                                <input
-                                    value={sessionCookie}
-                                    onChange={e => setSessionCookie(e.target.value)}
-                                    placeholder="e.g. sitequeuesession=ABC123; sessionid=XYZ..."
-                                    style={{width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: '12px', borderColor: '#ffc107'}}
-                                />
-                            </div>
-                        </div>
-                    )}
                     {results && (
                         <div className="results">
                             {results.map(cg => (
