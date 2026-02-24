@@ -186,6 +186,7 @@
             })();
             const [results, setResults] = useState(null);
             const [loading, setLoading] = useState(false);
+            const [queueError, setQueueError] = useState(false);
             
             const geocode = async () => {
                 try {
@@ -212,22 +213,28 @@
             
             const searchAvailability = async () => {
                 setLoading(true);
+                setQueueError(false);
                 const arrFmt = arrival.replace(/-/g, '/');
                 const depFmt = departure.replace(/-/g, '/');
-                
+
                 const promises = selectedIds.map(async id => {
                     const url = `https://parkstay.dbca.wa.gov.au/api/campsite_availablity_view/${id}/?arrival=${arrFmt}&departure=${depFmt}&num_adult=2&num_child=0&num_concession=0&num_infant=0&gear_type=all&_=${Date.now()}`;
                     const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
                     try {
                         const res = await fetch(proxy);
-                        const data = await res.json();
+                        const text = await res.text();
+                        if (text.includes('queue.dbca.wa.gov.au') || text.includes('waiting-room')) {
+                            return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data: null, queued: true, coords: COORDS[id] };
+                        }
+                        const data = JSON.parse(text);
                         return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data, coords: COORDS[id] };
                     } catch (e) {
                         return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data: null, coords: COORDS[id] };
                     }
                 });
-                
+
                 const data = await Promise.all(promises);
+                if (data.some(r => r.queued)) setQueueError(true);
                 setResults(data.filter(r => r.data && r.data.sites));
                 setLoading(false);
             };
@@ -289,6 +296,12 @@
                         </div>
                     </div>
                     
+                    {queueError && (
+                        <div style={{margin: '20px', padding: '15px', background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', color: '#856404'}}>
+                            <strong>⏳ WA Parks Virtual Queue Active</strong>
+                            <p style={{margin: '8px 0 0'}}>The WA Parks booking system has a virtual waiting room in place right now. No availability data could be retrieved. Please try again later.</p>
+                        </div>
+                    )}
                     {results && (
                         <div className="results">
                             {results.map(cg => (
