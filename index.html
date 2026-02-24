@@ -219,18 +219,27 @@
 
                 const promises = selectedIds.map(async id => {
                     const url = `https://parkstay.dbca.wa.gov.au/api/campsite_availablity_view/${id}/?arrival=${arrFmt}&departure=${depFmt}&num_adult=2&num_child=0&num_concession=0&num_infant=0&gear_type=all&_=${Date.now()}`;
-                    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+                    const name = CAMPGROUNDS.find(c => c.id === id).name;
+                    const parseResult = text => {
+                        if (text.includes('queue.dbca.wa.gov.au') || text.includes('waiting-room')) return { queued: true };
+                        try { return { data: JSON.parse(text) }; } catch { return {}; }
+                    };
+                    // Try direct fetch first — sends existing browser cookies for parkstay.dbca.wa.gov.au
                     try {
-                        const res = await fetch(proxy);
-                        const text = await res.text();
-                        if (text.includes('queue.dbca.wa.gov.au') || text.includes('waiting-room')) {
-                            return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data: null, queued: true, coords: COORDS[id] };
-                        }
-                        const data = JSON.parse(text);
-                        return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data, coords: COORDS[id] };
-                    } catch (e) {
-                        return { id, name: CAMPGROUNDS.find(c => c.id === id).name, data: null, coords: COORDS[id] };
-                    }
+                        const res = await fetch(url, { credentials: 'include' });
+                        const result = parseResult(await res.text());
+                        if (result.data) return { id, name, data: result.data, coords: COORDS[id] };
+                        if (!result.queued) throw new Error('no data');
+                        // Direct fetch got queued — fall through to proxy
+                    } catch (e) { /* CORS blocked or no data — fall through to proxy */ }
+                    // Fall back to CORS proxy
+                    try {
+                        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+                        const result = parseResult(await res.text());
+                        if (result.data) return { id, name, data: result.data, coords: COORDS[id] };
+                        if (result.queued) return { id, name, data: null, queued: true, coords: COORDS[id] };
+                    } catch (e) {}
+                    return { id, name, data: null, coords: COORDS[id] };
                 });
 
                 const data = await Promise.all(promises);
@@ -299,7 +308,11 @@
                     {queueError && (
                         <div style={{margin: '20px', padding: '15px', background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', color: '#856404'}}>
                             <strong>⏳ WA Parks Virtual Queue Active</strong>
-                            <p style={{margin: '8px 0 0'}}>The WA Parks booking system has a virtual waiting room in place right now. No availability data could be retrieved. Please try again later.</p>
+                            <p style={{margin: '8px 0 0'}}>The WA Parks booking system requires a valid session. To fix this:</p>
+                            <ol style={{margin: '8px 0 0', paddingLeft: '20px'}}>
+                                <li>Open <a href="https://parkstay.dbca.wa.gov.au" target="_blank" rel="noreferrer" style={{color: '#856404'}}>parkstay.dbca.wa.gov.au</a> in this browser and wait through the queue</li>
+                                <li>Once the site loads, come back here and search again</li>
+                            </ol>
                         </div>
                     )}
                     {results && (
