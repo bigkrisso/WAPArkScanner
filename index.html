@@ -187,6 +187,7 @@
             const [results, setResults] = useState(null);
             const [loading, setLoading] = useState(false);
             const [queueError, setQueueError] = useState(false);
+            const [sessionCookie, setSessionCookie] = useState('');
             
             const geocode = async () => {
                 try {
@@ -224,17 +225,9 @@
                         if (text.includes('queue.dbca.wa.gov.au') || text.includes('waiting-room')) return { queued: true };
                         try { return { data: JSON.parse(text) }; } catch { return {}; }
                     };
-                    // Try direct fetch first — sends existing browser cookies for parkstay.dbca.wa.gov.au
                     try {
-                        const res = await fetch(url, { credentials: 'include' });
-                        const result = parseResult(await res.text());
-                        if (result.data) return { id, name, data: result.data, coords: COORDS[id] };
-                        if (!result.queued) throw new Error('no data');
-                        // Direct fetch got queued — fall through to proxy
-                    } catch (e) { /* CORS blocked or no data — fall through to proxy */ }
-                    // Fall back to CORS proxy
-                    try {
-                        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+                        const headers = sessionCookie.trim() ? { 'Cookie': `sitequeuesession=${sessionCookie.trim()}` } : {};
+                        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { headers });
                         const result = parseResult(await res.text());
                         if (result.data) return { id, name, data: result.data, coords: COORDS[id] };
                         if (result.queued) return { id, name, data: null, queued: true, coords: COORDS[id] };
@@ -308,11 +301,21 @@
                     {queueError && (
                         <div style={{margin: '20px', padding: '15px', background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', color: '#856404'}}>
                             <strong>⏳ WA Parks Virtual Queue Active</strong>
-                            <p style={{margin: '8px 0 0'}}>The WA Parks booking system requires a valid session. To fix this:</p>
+                            <p style={{margin: '8px 0 0'}}>The API requires a valid session cookie. To fix this:</p>
                             <ol style={{margin: '8px 0 0', paddingLeft: '20px'}}>
-                                <li>Open <a href="https://parkstay.dbca.wa.gov.au" target="_blank" rel="noreferrer" style={{color: '#856404'}}>parkstay.dbca.wa.gov.au</a> in this browser and wait through the queue</li>
-                                <li>Once the site loads, come back here and search again</li>
+                                <li>Open <a href="https://parkstay.dbca.wa.gov.au" target="_blank" rel="noreferrer" style={{color: '#856404'}}>parkstay.dbca.wa.gov.au</a> in this browser and wait through the queue until the site loads</li>
+                                <li>Open DevTools (F12) → Application → Cookies → <code>https://parkstay.dbca.wa.gov.au</code></li>
+                                <li>Copy the value of <strong>sitequeuesession</strong> and paste it below, then search again</li>
                             </ol>
+                            <div style={{marginTop: '10px'}}>
+                                <label style={{display: 'block', marginBottom: '4px', fontWeight: 'bold'}}>sitequeuesession value:</label>
+                                <input
+                                    value={sessionCookie}
+                                    onChange={e => setSessionCookie(e.target.value)}
+                                    placeholder="Paste cookie value here..."
+                                    style={{width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: '12px', borderColor: '#ffc107'}}
+                                />
+                            </div>
                         </div>
                     )}
                     {results && (
