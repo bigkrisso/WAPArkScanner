@@ -226,7 +226,7 @@
                         try { return { data: JSON.parse(text) }; } catch { return {}; }
                     };
                     try {
-                        const headers = sessionCookie.trim() ? { 'Cookie': `sitequeuesession=${sessionCookie.trim()}` } : {};
+                        const headers = sessionCookie.trim() ? { 'Cookie': sessionCookie.trim() } : {};
                         const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { headers });
                         const result = parseResult(await res.text());
                         if (result.data) return { id, name, data: result.data, coords: COORDS[id] };
@@ -304,15 +304,16 @@
                             <p style={{margin: '8px 0 0'}}>The API requires a valid session cookie. To fix this:</p>
                             <ol style={{margin: '8px 0 0', paddingLeft: '20px'}}>
                                 <li>Open <a href="https://parkstay.dbca.wa.gov.au" target="_blank" rel="noreferrer" style={{color: '#856404'}}>parkstay.dbca.wa.gov.au</a> in this browser and wait through the queue until the site loads</li>
-                                <li>Open DevTools (F12) → Application → Cookies → <code>https://parkstay.dbca.wa.gov.au</code></li>
-                                <li>Copy the value of <strong>sitequeuesession</strong> and paste it below, then search again</li>
+                                <li>Open DevTools (F12) → <strong>Network</strong> tab, then refresh the page</li>
+                                <li>Click any request to <code>parkstay.dbca.wa.gov.au</code> → <strong>Headers</strong> → scroll to <strong>Request Headers</strong></li>
+                                <li>Copy the entire value next to <strong>cookie:</strong> and paste it below, then search again</li>
                             </ol>
                             <div style={{marginTop: '10px'}}>
-                                <label style={{display: 'block', marginBottom: '4px', fontWeight: 'bold'}}>sitequeuesession value:</label>
+                                <label style={{display: 'block', marginBottom: '4px', fontWeight: 'bold'}}>Paste full cookie string:</label>
                                 <input
                                     value={sessionCookie}
                                     onChange={e => setSessionCookie(e.target.value)}
-                                    placeholder="Paste cookie value here..."
+                                    placeholder="e.g. sitequeuesession=ABC123; sessionid=XYZ..."
                                     style={{width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: '12px', borderColor: '#ffc107'}}
                                 />
                             </div>
